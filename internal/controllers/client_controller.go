@@ -6,8 +6,10 @@ import (
 	"os/user"
 	"strconv"
 
-	"github.com/Bbanks/dashboard-server/internal/database"
-	"github.com/Bbanks/dashboard-server/internal/models"
+	"github.com/Bbanks14/dashboard-server/internal/data/database"
+	"github.com/Bbanks14/dashboard-server/internal/models"
+	"github.com/Bbanks14/dashboard-server/internal/util/log"
+	"github.com/Bbanks14/dashboard-server/pkg/helpers/params"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,21 +19,20 @@ type ClientController struct {
 }
 
 // NewClientController creates a new client controller instance
-func NewClientController(db *database.Database) {
+func NewClientController(db *database.Database) *ClientController {
 	return &ClientController{DB: db}
 }
 
 // GetProducts returns all products with pagination
 func (c *ClientController) GetProducts(ctx *gin.Context) {
-	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
-	sort := ctx.DefaultQuery("sort", "createdAt")
-	search := ctx.DefaultQuery("search", "")
+	params := GetQueryParams(ctx)
 
-	products, totalCount, err := c.DB.GetProducts(page, pageSize, sort, search)
+	products, totalCount, err := c.DB.GetProducts(params)
 
+	// Use the log package to log the error
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		log.ErrorLogger.Printf("Error fetching products: %v", error)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
 	}
 
