@@ -1,15 +1,13 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
-	"os/user"
 	"strconv"
 
 	"github.com/Bbanks14/dashboard-server/internal/data/database"
 	"github.com/Bbanks14/dashboard-server/internal/models"
-	"github.com/Bbanks14/dashboard-server/internal/util/log"
-	"github.com/Bbanks14/dashboard-server/pkg/helpers/params"
+	"github.com/Bbanks14/dashboard-server/internal/services"
+	"github.com/Bbanks14/dashboard-server/internal/structs"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,16 +23,12 @@ func NewClientController(db *database.Database) *ClientController {
 
 // GetProducts returns all products with pagination
 func (c *ClientController) GetProducts(ctx *gin.Context) {
-	params := GetQueryParams(ctx)
-
-	products, totalCount, err := c.DB.GetProducts(params)
-
-	// Use the log package to log the error
-	if err != nil {
-		log.ErrorLogger.Printf("Error fetching products: %v", error)
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+	params, ok := GetQueryParams(ctx)
+	if !ok {
 		return
 	}
+
+	products, totalCount, err := c.DB.GetProducts(params.Page, params.PageSize, params.Sort, params.Search)
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"products": products,
@@ -44,11 +38,10 @@ func (c *ClientController) GetProducts(ctx *gin.Context) {
 
 // GetCustomers returns all customers/users with pagination
 func (c *ClientController) GetCustomers(ctx *gin.Context) {
-	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
-	sort := ctx.DefaultQuery("sort", "createdAt")
-	search := ctx.DefaultQuery("search", "")
-
+	params, ok := GetQueryParams(ctx)
+	if !ok {
+		return
+	}
 	users, totalCount, err := c.DB.GetUsers(page, pageSize, sort, search)
 
 	if err != nil {
@@ -64,11 +57,10 @@ func (c *ClientController) GetCustomers(ctx *gin.Context) {
 
 // GetTransactions returns all transactions with pagination
 func (c *ClientController) GetTransactions(ctx *gin.Context) {
-	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
-	sort := ctx.DefaultQuery("sort", "createdAt")
-	search := ctx.DefaultQuery("search", "")
-
+	params, ok := GetQueryParams(ctx)
+	if !ok {
+		return
+	}
 	transactions, totalCount, err := c.DB.GetTransactions(page, pageSize, sort, search)
 
 	if err != nil {

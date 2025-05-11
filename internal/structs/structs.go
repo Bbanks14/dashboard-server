@@ -1,16 +1,30 @@
-package data
+package structs
 
-// dataAffiliateStruct defines data type expected as `json:""`
-type dataAffiliateStruct struct {
-	_id            string   `json: "_id"`
-	userId         string   `json: "userId"`
-	affiliateSales []string `json: "affiliateSales"`
+import (
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// DataAffiliateStruct defines data type expected as `json:""`
+type DataAffiliateStruct struct {
+	Id             string   `json:"_id"`
+	UserId         string   `json:"userId"`
+	AffiliateSales []string `json:"affiliateSales"`
 }
 
-// QueryParamsStruct defines the query parameters for the API especially for pagination
-type QueryParamsStruct struct {
-	Page     int
-	Pagesize int
-	Sort     string
-	Search   string
+// DashboardStat represents analytics data for the dashboard
+type DashboardStatStruct struct {
+	ID             int64     `json:"id"`
+	Date           time.Time `json:"date"`
+	TotalUsers     int       `json:"total_users"`
+	ActiveUsers    int       `json:"active_users"`
+	Revenue        float64   `json:"revenue"`
+	Transactions   int       `json:"transactions"`
+	ConversionRate float64   `json:"conversion_rate"`
+}
+
+// pgxProductRepoStruct defines a db struct using pgxpool
+type pgxProductRepoStruct struct {
+	db *pgxpool.Pool
 }

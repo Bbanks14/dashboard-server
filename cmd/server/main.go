@@ -7,11 +7,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Bbanks14/dashboard-server/internal/controllers"
+	"github.com/Bbanks14/dashboard-server/internal/middleware"
+	"github.com/Bbanks14/dashboard-server/internal/routes"
+	"github.com/Bbanks14/dashboard-server/internal/services"
+
 	"github.com/joho/godotenv"
-	"github.com/yourusername/dashboard-backend/internal/data"
-	"github.com/yourusername/dashboard-backend/internal/routes"
-	"github.com/yourusername/dashboard-backend/internal/util/config"
-	"github.com/yourusername/dashboard-backend/internal/util/logger"
 )
 
 func main() {
