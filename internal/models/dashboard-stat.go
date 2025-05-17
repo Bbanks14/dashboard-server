@@ -1,4 +1,3 @@
-// File: internal/models/dashboard_stat.go
 package models
 
 import "time"
@@ -14,9 +13,19 @@ type DashboardStat struct {
 	ConversionRate float64   `json:"conversion_rate"`
 }
 
-// DashboardStatRepository interface for dashboard stats operations
-type DashboardStatRepository interface {
-	GetStats(startDate, endDate time.Time) ([]*DashboardStat, error)
-	GetSummary() (*DashboardStat, error)
-	CreateStat(stat *DashboardStat) error
+// DashboardStats represents analytics data for the dashboard within a specific date range
+type DashboardStats struct {
+	TotalUsers         int64   // Total number of registered users
+	NewUsers           int64   // Users created within the date range
+	ActiveUsers        int64   // Users active within the date range
+	AvgSessionDuration float64 // Average session duration in minutes
+	PeakUsageTime      string  // Busiest time window in HH:MM-HH:MM format
+}
+
+// DashboardSummary provides aggregated user activity metrics
+type DashboardSummary struct {
+	TotalUsers      int64 // Total registered users across all time
+	ActiveToday     int64 // Users active within the current day
+	ActiveThisWeek  int64 // Users active within the current week
+	ActiveThisMonth int64 // Users active within the current month
 }

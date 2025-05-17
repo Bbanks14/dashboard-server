@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v4/pxpool"
-	"github.com/yourusername/dashboard-backend/internal/models/AffiliateStat"
-	"github.com/yourusername/dashboard-backend/internal/util/config"f
+	"github.com/Bbanks14/dashboard-backend/internal/models/AffiliateStat"
+	"github.com/Bbanks14/dashboard-backend/internal/util/config"
 )
 
 // Database handles database connections and operations
@@ -35,7 +35,7 @@ func NewDatabase(config config.DatabaseConfig) (*Database, error) {
 }
 
 // CreateTableIfNotExists ensures the AffiliateStat table exists
-func (m *AffiliateModel)  {
+func (m *AffiliateModel) CreateTableIfNotExists {
 	query := `
 	CREATE TABLE IF NOT EXISTS affiliates (
 		id UUID PRIMARY KEY,

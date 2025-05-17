@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/dashboard-backend/internal/services"
-	"github.com/yourusername/dashboard-backend/internal/util/config"
-	"github.com/yourusername/dashboard-backend/pkg/helpers"
+
+	"github.com/Bbanks14/dashboard-backend/internal/services"
+	"github.com/Bbanks14/dashboard-backend/internal/util/config"
+	"github.com/Bbanks14/dashboard-backend/pkg/helpers"
 )
 
 // AuthMiddleware handles authentication for protected routes

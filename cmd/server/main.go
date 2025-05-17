@@ -1,5 +1,5 @@
 // File: cmd/server/main.go
-package main
+package server
 
 import (
 	"log"
