@@ -1,28 +1,36 @@
 package services
 
 import (
+	"context"
 	"time"
 
 	"github.com/Bbanks14/dashboard-server/internal/data/database"
 	"github.com/Bbanks14/dashboard-server/internal/models"
+	"github.com/mortenterhart/trivial-tickets/cli/client"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // DashboardService interface defines the contract for dashboard services
 type DashboardService interface {
-	GetUser(startDate, endDate time.Time) ([]models.User, error)
-	GetDashboardStats(startDate, endDate time.Time) (*models.DashboardStats, error)
-	GetDashboardSummary() (*models.DashboardSummary, error)
+	GetUser(ctx context.Context, startDate, endDate time.Time) ([]models.User, error)
+	GetDashboardStats(ctx context.Context, startDate, endDate time.Time) (*models.DashboardStats, error)
+	GetDashboardSummary(ctx context.Context) (*models.DashboardSummary, error)
 }
 
 // dashboardService implements the DashboardService interface
 type dashboardService struct {
-	DB *database.Database
+	client   *mongo.Client
+	database *mongo.Database
 }
 
 // NewDashboardService creates a new dashboard service instance
-func NewDashboardService(db *database.Database) DashboardService {
+func NewDashboardService(client *mongo.Client, databaseName string) DashboardService {
 	return &dashboardService{
-		DB: db,
+		client:   client,
+		database: client.Database(databaseName),
 	}
 }
 
@@ -32,10 +40,22 @@ func (s *dashboardService) GetUser(startDate, endDate time.Time) ([]models.User,
 	var users []models.User
 
 	// Query for users created or active between the start and end dates
-	if err := s.DB.Connection.
-		Where("created_at BETWEEN ? AND ? OR last_active_at BETWEEN ? AND ?",
-			startDate, endDate, startDate, endDate).
-		Find(&users).Error; err != nil {
+	filter := bson.M{
+		"$or": []bson.M{
+			{"created_at": bson.M{"$gte": startDate, "$lte": endDate}},
+			{"last_active_at": bson.M{"$gte": startDate, "$lte": endDate}},
+		},
+	}
+
+	// Execute the query
+	cursor, err := s.database.Collection("users").Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	// Decode the results
+	if err = cursor.All(ctx, &users); err != nil {
 		return nil, err
 	}
 
@@ -43,63 +63,79 @@ func (s *dashboardService) GetUser(startDate, endDate time.Time) ([]models.User,
 }
 
 // GetDashboardStats retrieves analytics data for the dashboard based on date range
-func (s *dashboardService) GetDashboardStats(startDate, endDate time.Time) (*models.DashboardStats, error) {
+func (s *dashboardService) GetDashboardStats(ctx context.Context, startDate, endDate time.Time) (*models.DashboardStats, error) {
 	// Initialize stats object
 	stats := &models.DashboardStats{}
 
 	// Count total users
-	var totalUsers int64
-	if err := s.DB.Connection.Model(&models.User{}).Count(&totalUsers).Error; err != nil {
+	totalUsers, err := s.database.Collection("users").CountDocuments(ctx, bson.M{})
+	if err != nil {
 		return nil, err
 	}
 	stats.TotalUsers = totalUsers
 
 	// Count new users in date range
-	var newUsers int64
-	if err := s.DB.Connection.Model(&models.User{}).
-		Where("created_at BETWEEN ? AND ?", startDate, endDate).
-		Count(&newUsers).Error; err != nil {
+	newUsers, err := s.database.Collection("users").CountDocuments(ctx, bson.M{
+		"created_at": bson.M{"$gte": startDate, "$lte": endDate},
+	})
+	if err != nil {
 		return nil, err
 	}
 	stats.NewUsers = newUsers
 
 	// Count active users in date range
-	var activeUsers int64
-	if err := s.DB.Connection.Model(&models.User{}).
-		Where("last_active_at BETWEEN ? AND ?", startDate, endDate).
-		Count(&activeUsers).Error; err != nil {
+	activeUsers, err := s.database.Collection("users").CountDocuments(ctx, bson.M{
+		"last_active_at": bson.M{"$gte": startDate, "$lte": endDate},
+	})
+	if err != nil {
 		return nil, err
 	}
 	stats.ActiveUsers = activeUsers
 
 	// Calculate average session duration
-	// This is a placeholder - implement according to your data model
-	var avgSessionDuration float64
-	rows, err := s.DB.Connection.Raw(`
-		SELECT AVG(TIMESTAMPDIFF(MINUTE, session_start, session_end))
-		FROM user_sessions
-		WHERE session_start BETWEEN ? AND ?`,
-		startDate, endDate).Rows()
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: bson.M{
+			"session_start": bson.M{"$gte": startDate, "$lte": endDate},
+		}}},
+		{{Key: "$project", Value: bson.M{
+			"duration_minutes": bson.M{
+				"$divide": []interface{}{
+					bson.M{"$subtract": []interface{}{"$session_end", "$session_start"}},
+					60000, // Convert milliseconds to minutes
+				},
+			},
+		}}},
+		{{Key: "$group", Value: bson.M{
+			"_id":         nil,
+			"avgDuration": bson.M{"$avg": "$duration_minutes"},
+		}}},
+	}
 
+	cursor, err := s.database.Collection("user_sessions").Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer cursor.Close(ctx)
 
-	if rows.Next() {
-		rows.Scan(&avgSessionDuration)
+	var result []bson.M
+	if err = cursor.All(ctx, &result); err != nil {
+		return nil, err
 	}
-	stats.avgSessionDuration = avgSessionDuration
+
+	var avgSessionDuration float64
+	if len(result) > 0 && result[0]["avgDuration"] != nil {
+		avgSessionDuration = result[0]["avgDuration"].(float64)
+	}
+	stats.AvgSessionDuration = avgSessionDuration
 
 	// Determine peak usage time - placeholder implementation
-	// You would implement this according to your specific requirements
-	starts.PeakUsageTime = "14:00-16:00"
+	stats.PeakUsageTime = "14:00-16:00" // Fixed variable name
 
 	return stats, nil
 }
 
 // GetDashboardSummary retrieves a summary of current dashboard statistics
-func (s *dashboardService) GetDashboardSummary() (*models.DashboardSummary, error) {
+func (s *dashboardService) GetDashboardSummary(ctx context.Context) (*models.DashboardSummary, error) {
 	summary := &models.DashboardSummary{
 		TotalUsers:      0,
 		ActiveToday:     0,
@@ -108,33 +144,41 @@ func (s *dashboardService) GetDashboardSummary() (*models.DashboardSummary, erro
 	}
 
 	// Get total user count
-	if err := s.DB.Connection.Model(&models.User{}).Count(&summary.TotalUsers).Error; err != nil {
+	totalUsers, err := s.database.Collection("users").CountDocuments(ctx, bson.M{})
+	if err != nil {
 		return nil, err
 	}
+	summary.TotalUsers = totalUsers
 
 	// Get users active today
 	today := time.Now().Truncate(24 * time.Hour)
-	if err := s.DB.Connection.Model(&models.User{}).
-		Where("last_active_at >= ?", today).
-		Count(&summary.ActiveToday).Error; err != nil {
+	activeToday, err := s.database.Collection("users").CountDocuments(ctx, bson.M{
+		"last_active_at": bson.M{"$gte": today},
+	})
+	if err != nil {
 		return nil, err
 	}
+	summary.ActiveToday = activeToday
 
 	// Get users active this week
 	weekStart := today.AddDate(0, 0, -int(today.Weekday()))
-	if err := s.DB.Connection.Model(&models.User{}).
-		Where("last_active_at >= ?", weekStart).
-		Count(&summary.ActiveThisWeek).Error; err != nil {
+	activeThisWeek, err := s.database.Collection("users").CountDocuments(ctx, bson.M{
+		"last_active_at": bson.M{"$gte": weekStart},
+	})
+	if err != nil {
 		return nil, err
 	}
+	summary.ActiveThisWeek = activeThisWeek
 
 	// Get users active this month
 	monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, today.Location())
-	if err := s.DB.Connection.Model(&models.User{}).
-		Where("last_active_at >= ?", monthStart).
-		Count(&summary.ActiveThisMonth).Error; err != nil {
+	activeThisMonth, err := s.database.Collection("users").CountDocuments(ctx, bson.M{
+		"last_active_at": bson.M{"$gte": monthStart},
+	})
+	if err != nil {
 		return nil, err
 	}
+	summary.ActiveThisMonth = activeThisMonth
 
 	return summary, nil
 }

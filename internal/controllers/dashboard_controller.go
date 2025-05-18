@@ -4,12 +4,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Bbanks14/dashboard-server/internal/data/database"
 	"github.com/Bbanks14/dashboard-server/internal/models"
 	"github.com/Bbanks14/dashboard-server/internal/services"
 	"github.com/Bbanks14/dashboard-server/internal/util/errors"
 	"github.com/Bbanks14/dashboard-server/pkg/helpers"
+
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // DashboardController interface defines the contract for dashboard controllers
@@ -21,15 +22,18 @@ type DashboardController interface {
 
 // dashboardController implements the DashboardController interface
 type dashboardController struct {
-	DB               *database.Database
+	mongoClient      *mongo.Client
+	database         *mongo.Database
 	dashboardService *services.DashboardService
 }
 
 // NewDashboardController creates a new dashboard controller instance
-func NewDashboardController(db *database.Database) DashboardController {
+func NewDashboardController(client *mongo.Client, adminDashboard string) DashboardController {
+	db := client.Database(adminDashboard)
 	return &dashboardController{
-		DB:               db,
-		dashboardService: services.NewDashboardService(db),
+		mongoClient:      client,
+		database:         db,
+		dashboardService: services.NewDashboardService(client, adminDashboard),
 	}
 }
 
