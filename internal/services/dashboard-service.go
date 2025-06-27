@@ -4,8 +4,8 @@ package services
 import (
 	"time"
 
-	"github.com/yourusername/dashboard-backend/internal/data"
-	"github.com/yourusername/dashboard-backend/internal/models"
+	"github.com/Bbanks14/dashboard-server/internal/data"
+	"github.com/Bbanks14/dashboard-server/internal/models"
 )
 
 // DashboardService handles business logic for dashboard analytics

@@ -2,8 +2,7 @@ package data
 
 import "github.com/Bbanks14/dashboard-server/internal/structs"
 
-
-dataAffiliateStat := []dataAffiliateStruct{ 
+var AffiliateStat = []structs.DataAffiliateStruct {
 		{
 			_id: "6371251df03239e680000033",
     	userId: "63701cc1f03239f09e00018a",

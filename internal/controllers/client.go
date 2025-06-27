@@ -184,5 +184,3 @@ func GetGeography(c *gin.Context) {
 		c.JSON(http.StatusOK, locations)
 	}
 }
-	}
-}

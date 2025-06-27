@@ -2,59 +2,69 @@ package structs
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // DataAffiliateStruct defines data type expected as `json:""`
 type DataAffiliateStruct struct {
-	Id             string   `json:"_id"`
+	ID             string   `db:"id" json:"id"`
 	UserId         string   `json:"userId"`
 	AffiliateSales []string `json:"affiliateSales"`
 }
 
+// AffiliateStatSchema represents the schema for affiliate statistics in PostgreSQL.
+type AffiliateStatSchema struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	UserID         uuid.UUID `db:"user_id" json:"userId"`
+	AffiliateSales []string  `db:"affiliate_sales" json:"affiliateSales"`
+	CreatedAt      time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updatedAt"`
+}
+
 // DashboardStat represents analytics data for the dashboard
-type DashboardStatStruct struct {
-	ID             int64     `json:"id"`
-	Date           time.Time `json:"date"`
-	TotalUsers     int       `json:"total_users"`
-	ActiveUsers    int       `json:"active_users"`
-	Revenue        float64   `json:"revenue"`
-	Transactions   int       `json:"transactions"`
-	ConversionRate float64   `json:"conversion_rate"`
+type DashboardStat struct {
+	ID             int64     `db:"id" json:"id"`
+	Date           time.Time `db:"date" json:"date"`
+	TotalUsers     int       `db:"total_users" json:"total_users"`
+	ActiveUsers    int       `db:"active_users" json:"active_users"`
+	Revenue        float64   `db:"revenue" json:"revenue"`
+	Transactions   int       `db:"transactions" json:"transactions"`
+	ConversionRate float64   `db:"conversion_rate" json:"conversion_rate"`
 }
 
 // OverallStat defines the overall sales data type as expected in json
-type OverallStatStruct struct {
-	TotalCustomers       int `json:"totalCustomers"`
-	YearlySalesTotal     int `json:"yearlySalesTotal"`
-	YearlyTotalSoldUnits int `json:"yearlyTotalSoldUnits"`
+type OverallStat struct {
+	ID                   uuid.UUID `db:"id" json:"id"`
+	TotalCustomers       int       `db:"customers" json:"totalCustomers"`
+	YearlySalesTotal     int       `db:"yearly_sales_total" json:"yearlySalesTotal"`
+	YearlyTotalSoldUnits int       `db:"yearly_total_sold_units" json:"yearlyTotalSoldUnits"`
 
-	Year            int                 `json:"year"`
-	MonthlyData     []MonthlyDataStruct `json:"monthlyData"`
+	Year            int                 `db:"year" json:"year"`
+	MonthlyData     []MonthlyDataStruct `db:"monthly_data" json:"monthlyData"`
 	DailyData       []DailyDataStruct   `json:"dailyData"`
-	SalesByCategory SalesByCategory     `json:"salesByCategory"`
+	SalesByCategory SalesByCategory     `db:"sales_by_category" json:"salesByCategory"`
 
-	ID        string `json:"_id"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
-	V         int    `json:"__v"`
+	CreatedAt time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt string    `db:"updated_at" json:"updatedAt"`
+	V         time.Time `db:"v" json:"__v"`
 }
 
 type MonthlyDataStruct struct {
-	Month      string `json:"month"`
-	TotalSales int    `json:"totalSales"`
-	TotalUnits int    `json:"totalUnits"`
-	ID         string `json:"_id"`
+	Month      string `db:"month" json:"month"`
+	TotalSales int    `db:"total_sales" json:"totalSales"`
+	TotalUnits int    `db:"total_units" json:"totalUnits"`
 }
 
 type DailyDataStruct struct {
-	Date       string `json:"date"`
-	TotalSales int    `json:"totalSales"`
-	TotalUnits int    `json:"totalUnits"`
+	Date       string `db:"date" json:"date"`
+	TotalSales int    `db:"total_sales" json:"totalSales"`
+	TotalUnits int    `db:"total_units" json:"totalUnits"`
 }
 
 type SalesByCategory struct {
-	Shoes       int `json:"shoes"`
-	Clothing    int `json:"clothing"`
-	Accessories int `json:"accessories"`
-	Misc        int `json:"misc"`
+	Shoes       int `db:"shoes" json:"shoes"`
+	Clothing    int `db:"clothing" json:"clothing"`
+	Accessories int `db:"accessories" json:"accessories"`
+	Misc        int `db:"misc" json:"misc"`
 }

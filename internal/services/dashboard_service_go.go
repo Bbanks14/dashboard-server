@@ -6,7 +6,6 @@ import (
 
 	"github.com/Bbanks14/dashboard-server/internal/data/database"
 	"github.com/Bbanks14/dashboard-server/internal/models"
-	"github.com/mortenterhart/trivial-tickets/cli/client"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

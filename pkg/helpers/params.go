@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/Bbanks/internal/structs"
+	"github.com/Bbanks14/dashboard-server/internal/structs"
 	"github.com/gin-gonic/gin"
 )
 
