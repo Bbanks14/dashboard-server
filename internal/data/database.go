@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
-	"github.com/Bbanks14/dashboard-backend/internal/util/config"
+	"github.com/Bbanks14/dashboard-server/internal/util/config"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -21,12 +22,24 @@ func NewDatabase(config config.DatabaseConfig) (*Database, error) {
 		config.Host, config.Port, config.User, config.Password, config.Name,
 	)
 
-	pool, err := pgxpool.log.Println(context.Background(), connStr)
+	pool, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
+	// Test the connection
+	if err := pool.Ping(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
 	return &Database{Pool: pool}, nil
+}
+
+// Close closes the database connection pool
+func (db *Database) Close() {
+	if db.Pool != nil {
+		db.Pool.Close()
+	}
 }
 
 // AffiliateModel handles affiliate-related database operations
@@ -56,19 +69,16 @@ func (m *AffiliateModel) CreateTableIfNotExists() error {
 
 // GetClients retrieves clients with pagination, sorting, and search
 func (db *Database) GetClients(page, pageSize int, sort, search string) (interface{}, int, error) {
-	// Calculate offset for pagination
+	ctx := context.Background()
 	offset := (page - 1) * pageSize
 
-	// Base query
 	baseQuery := `
 		SELECT id, company_name, contact_name, contact_email, phone, address, 
 		       city, state, country, created_at, updated_at
 		FROM clients
 	`
-
 	countQuery := "SELECT COUNT(*) FROM clients"
 
-	// Build WHERE clause for search
 	var whereClause string
 	var args []interface{}
 	argIndex := 1
@@ -83,24 +93,21 @@ func (db *Database) GetClients(page, pageSize int, sort, search string) (interfa
 		argIndex++
 	}
 
-	// Build ORDER BY clause
 	orderClause := fmt.Sprintf(" ORDER BY %s", db.sanitizeSortField(sort))
-
-	// Build LIMIT and OFFSET clause
 	limitClause := fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, pageSize, offset)
 
 	// Execute count query
 	var totalCount int
 	countArgs := args[:len(args)-2] // Remove LIMIT and OFFSET args for count
-	err := db.conn.QueryRow(countQuery+whereClause, countArgs...).Scan(&totalCount)
+	err := db.Pool.QueryRow(ctx, countQuery+whereClause, countArgs...).Scan(&totalCount)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get clients count: %w", err)
 	}
 
 	// Execute main query
 	fullQuery := baseQuery + whereClause + orderClause + limitClause
-	rows, err := db.conn.Query(fullQuery, args...)
+	rows, err := db.Pool.Query(ctx, fullQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query clients: %w", err)
 	}
@@ -138,16 +145,20 @@ func (db *Database) GetClients(page, pageSize int, sort, search string) (interfa
 }
 
 // GetProducts retrieves products with pagination, sorting, and search
+// Returns products in format compatible with frontend expectations
 func (db *Database) GetProducts(page, pageSize int, sort, search string) (interface{}, int, error) {
+	ctx := context.Background()
 	offset := (page - 1) * pageSize
 
+	// Join with product_stats table to match original JavaScript functionality
 	baseQuery := `
-		SELECT id, name, description, price, category, stock_quantity, 
-		       sku, brand, is_active, created_at, updated_at
-		FROM products
+		SELECT p.id, p.name, p.description, p.price, p.category, p.stock_quantity, 
+		       p.sku, p.brand, p.is_active, p.created_at, p.updated_at,
+		       ps.yearly_sales_total, ps.yearly_units_sold, ps.monthly_data, ps.daily_data
+		FROM products p
+		LEFT JOIN product_stats ps ON p.id = ps.product_id
 	`
-
-	countQuery := "SELECT COUNT(*) FROM products"
+	countQuery := "SELECT COUNT(*) FROM products p"
 
 	var whereClause string
 	var args []interface{}
@@ -155,30 +166,30 @@ func (db *Database) GetProducts(page, pageSize int, sort, search string) (interf
 
 	if search != "" {
 		whereClause = ` WHERE (
-			name ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
-			description ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
-			category ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR
-			brand ILIKE $` + fmt.Sprintf("%d", argIndex) + `
+			p.name ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
+			p.description ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
+			p.category ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR
+			p.brand ILIKE $` + fmt.Sprintf("%d", argIndex) + `
 		)`
 		args = append(args, "%"+search+"%")
 		argIndex++
 	}
 
-	orderClause := fmt.Sprintf(" ORDER BY %s", db.sanitizeSortField(sort))
+	orderClause := fmt.Sprintf(" ORDER BY p.%s", db.sanitizeSortField(sort))
 	limitClause := fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, pageSize, offset)
 
 	// Get total count
 	var totalCount int
 	countArgs := args[:len(args)-2]
-	err := db.conn.QueryRow(countQuery+whereClause, countArgs...).Scan(&totalCount)
+	err := db.Pool.QueryRow(ctx, countQuery+whereClause, countArgs...).Scan(&totalCount)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get products count: %w", err)
 	}
 
 	// Execute main query
 	fullQuery := baseQuery + whereClause + orderClause + limitClause
-	rows, err := db.conn.Query(fullQuery, args...)
+	rows, err := db.Pool.Query(ctx, fullQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query products: %w", err)
 	}
@@ -192,15 +203,27 @@ func (db *Database) GetProducts(page, pageSize int, sort, search string) (interf
 		var stockQuantity int
 		var isActive bool
 		var createdAt, updatedAt sql.NullTime
+		var yearlySalesTotal, yearlyUnitsSold sql.NullFloat64
+		var monthlyData, dailyData sql.NullString
 
 		err := rows.Scan(&id, &name, &description, &price, &category, &stockQuantity,
-			&sku, &brand, &isActive, &createdAt, &updatedAt)
+			&sku, &brand, &isActive, &createdAt, &updatedAt,
+			&yearlySalesTotal, &yearlyUnitsSold, &monthlyData, &dailyData)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan product row: %w", err)
 		}
 
+		// Build stat object to match original JavaScript structure
+		stat := map[string]interface{}{
+			"productId":        id,
+			"yearlySalesTotal": yearlySalesTotal.Float64,
+			"yearlyUnitsSold":  yearlyUnitsSold.Float64,
+			"monthlyData":      monthlyData.String,
+			"dailyData":        dailyData.String,
+		}
+
 		product := map[string]interface{}{
-			"id":             id,
+			"_id":            fmt.Sprintf("%d", id), // Convert to string to match MongoDB ObjectId format
 			"name":           name,
 			"description":    description,
 			"price":          price,
@@ -211,6 +234,7 @@ func (db *Database) GetProducts(page, pageSize int, sort, search string) (interf
 			"is_active":      isActive,
 			"created_at":     createdAt.Time,
 			"updated_at":     updatedAt.Time,
+			"stat":           []map[string]interface{}{stat}, // Array format to match original
 		}
 		products = append(products, product)
 	}
@@ -218,24 +242,25 @@ func (db *Database) GetProducts(page, pageSize int, sort, search string) (interf
 	return products, totalCount, nil
 }
 
-// GetUsers retrieves users with pagination, sorting, and search
-func (db *Database) GetUsers(page, pageSize int, sort, search string) (interface{}, int, error) {
+// GetCustomers retrieves users with role="user" (customers only) with pagination, sorting, and search
+func (db *Database) GetCustomers(page, pageSize int, sort, search string) (interface{}, int, error) {
+	ctx := context.Background()
 	offset := (page - 1) * pageSize
 
 	baseQuery := `
 		SELECT id, first_name, last_name, email, phone, date_of_birth, 
-		       address, city, state, country, occupation, created_at, updated_at
+		       address, city, state, country, occupation, role, created_at, updated_at
 		FROM users
+		WHERE role = 'user'
 	`
-
-	countQuery := "SELECT COUNT(*) FROM users"
+	countQuery := "SELECT COUNT(*) FROM users WHERE role = 'user'"
 
 	var whereClause string
 	var args []interface{}
 	argIndex := 1
 
 	if search != "" {
-		whereClause = ` WHERE (
+		whereClause = ` AND (
 			first_name ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
 			last_name ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
 			email ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR
@@ -252,34 +277,34 @@ func (db *Database) GetUsers(page, pageSize int, sort, search string) (interface
 	// Get total count
 	var totalCount int
 	countArgs := args[:len(args)-2]
-	err := db.conn.QueryRow(countQuery+whereClause, countArgs...).Scan(&totalCount)
+	err := db.Pool.QueryRow(ctx, countQuery+whereClause, countArgs...).Scan(&totalCount)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get users count: %w", err)
+		return nil, 0, fmt.Errorf("failed to get customers count: %w", err)
 	}
 
 	// Execute main query
 	fullQuery := baseQuery + whereClause + orderClause + limitClause
-	rows, err := db.conn.Query(fullQuery, args...)
+	rows, err := db.Pool.Query(ctx, fullQuery, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to query users: %w", err)
+		return nil, 0, fmt.Errorf("failed to query customers: %w", err)
 	}
 	defer rows.Close()
 
-	var users []map[string]interface{}
+	var customers []map[string]interface{}
 	for rows.Next() {
 		var id int
-		var firstName, lastName, email, phone, address, city, state, country, occupation string
+		var firstName, lastName, email, phone, address, city, state, country, occupation, role string
 		var dateOfBirth sql.NullTime
 		var createdAt, updatedAt sql.NullTime
 
 		err := rows.Scan(&id, &firstName, &lastName, &email, &phone, &dateOfBirth,
-			&address, &city, &state, &country, &occupation, &createdAt, &updatedAt)
+			&address, &city, &state, &country, &occupation, &role, &createdAt, &updatedAt)
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to scan user row: %w", err)
+			return nil, 0, fmt.Errorf("failed to scan customer row: %w", err)
 		}
 
-		user := map[string]interface{}{
-			"id":            id,
+		customer := map[string]interface{}{
+			"_id":           fmt.Sprintf("%d", id), // String format to match MongoDB
 			"first_name":    firstName,
 			"last_name":     lastName,
 			"email":         email,
@@ -290,17 +315,19 @@ func (db *Database) GetUsers(page, pageSize int, sort, search string) (interface
 			"state":         state,
 			"country":       country,
 			"occupation":    occupation,
+			"role":          role,
 			"created_at":    createdAt.Time,
 			"updated_at":    updatedAt.Time,
 		}
-		users = append(users, user)
+		customers = append(customers, customer)
 	}
 
-	return users, totalCount, nil
+	return customers, totalCount, nil
 }
 
 // GetTransactions retrieves transactions with pagination, sorting, and search
 func (db *Database) GetTransactions(page, pageSize int, sort, search string) (interface{}, int, error) {
+	ctx := context.Background()
 	offset := (page - 1) * pageSize
 
 	baseQuery := `
@@ -312,7 +339,6 @@ func (db *Database) GetTransactions(page, pageSize int, sort, search string) (in
 		LEFT JOIN users u ON t.user_id = u.id
 		LEFT JOIN products p ON t.product_id = p.id
 	`
-
 	countQuery := `
 		SELECT COUNT(*) 
 		FROM transactions t
@@ -326,6 +352,8 @@ func (db *Database) GetTransactions(page, pageSize int, sort, search string) (in
 
 	if search != "" {
 		whereClause = ` WHERE (
+			CAST(t.total_amount AS TEXT) ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
+			CAST(t.user_id AS TEXT) ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR
 			u.first_name ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
 			u.last_name ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR 
 			u.email ILIKE $` + fmt.Sprintf("%d", argIndex) + ` OR
@@ -336,21 +364,23 @@ func (db *Database) GetTransactions(page, pageSize int, sort, search string) (in
 		argIndex++
 	}
 
-	orderClause := fmt.Sprintf(" ORDER BY t.%s", db.sanitizeSortField(sort))
+	// Fix sort field to handle table prefixes properly
+	sortField := db.sanitizeSortFieldForTransactions(sort)
+	orderClause := fmt.Sprintf(" ORDER BY %s", sortField)
 	limitClause := fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 	args = append(args, pageSize, offset)
 
 	// Get total count
 	var totalCount int
 	countArgs := args[:len(args)-2]
-	err := db.conn.QueryRow(countQuery+whereClause, countArgs...).Scan(&totalCount)
+	err := db.Pool.QueryRow(ctx, countQuery+whereClause, countArgs...).Scan(&totalCount)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get transactions count: %w", err)
 	}
 
 	// Execute main query
 	fullQuery := baseQuery + whereClause + orderClause + limitClause
-	rows, err := db.conn.Query(fullQuery, args...)
+	rows, err := db.Pool.Query(ctx, fullQuery, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query transactions: %w", err)
 	}
@@ -373,9 +403,10 @@ func (db *Database) GetTransactions(page, pageSize int, sort, search string) (in
 		}
 
 		transaction := map[string]interface{}{
-			"id":               id,
-			"user_id":          userID,
-			"product_id":       productID,
+			"_id":              fmt.Sprintf("%d", id),            // String format to match MongoDB
+			"userId":           fmt.Sprintf("%d", userID),        // Match original field name
+			"cost":             fmt.Sprintf("%.2f", totalAmount), // String format to match original search
+			"products":         []string{productName.String},     // Array format to match original
 			"quantity":         quantity,
 			"unit_price":       unitPrice,
 			"total_amount":     totalAmount,
@@ -399,17 +430,20 @@ func (db *Database) GetTransactions(page, pageSize int, sort, search string) (in
 	return transactions, totalCount, nil
 }
 
-// GetUsersByLocation retrieves user count by location for geography charts
-func (db *Database) GetUsersByLocation() (interface{}, error) {
+// GetGeography retrieves user count by location for geography charts
+// Returns data in format expected by frontend: [{id: "USA", value: 25}]
+func (db *Database) GetGeography() (interface{}, error) {
+	ctx := context.Background()
+
 	query := `
 		SELECT country, COUNT(*) as user_count
 		FROM users 
-		WHERE country IS NOT NULL AND country != ''
+		WHERE country IS NOT NULL AND country != '' AND role = 'user'
 		GROUP BY country
 		ORDER BY user_count DESC
 	`
 
-	rows, err := db.conn.Query(query)
+	rows, err := db.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query users by location: %w", err)
 	}
@@ -425,9 +459,12 @@ func (db *Database) GetUsersByLocation() (interface{}, error) {
 			return nil, fmt.Errorf("failed to scan location row: %w", err)
 		}
 
+		// Convert country name to ISO3 code to match original JavaScript functionality
+		countryISO3 := db.convertCountryToISO3(country)
+
 		location := map[string]interface{}{
-			"country":    country,
-			"user_count": userCount,
+			"id":    countryISO3, // Match original format
+			"value": userCount,   // Match original format
 		}
 		locations = append(locations, location)
 	}
@@ -435,26 +472,108 @@ func (db *Database) GetUsersByLocation() (interface{}, error) {
 	return locations, nil
 }
 
+// convertCountryToISO3 converts full country names to ISO3 codes
+// This is a simplified version - you may want to use a proper library
+func (db *Database) convertCountryToISO3(countryName string) string {
+	countryMap := map[string]string{
+		"United States":        "USA",
+		"Canada":               "CAN",
+		"United Kingdom":       "GBR",
+		"Germany":              "DEU",
+		"France":               "FRA",
+		"Australia":            "AUS",
+		"Japan":                "JPN",
+		"China":                "CHN",
+		"India":                "IND",
+		"Brazil":               "BRA",
+		"Mexico":               "MEX",
+		"Italy":                "ITA",
+		"Spain":                "ESP",
+		"Netherlands":          "NLD",
+		"Sweden":               "SWE",
+		"Norway":               "NOR",
+		"Denmark":              "DNK",
+		"Finland":              "FIN",
+		"Poland":               "POL",
+		"Russia":               "RUS",
+		"South Korea":          "KOR",
+		"Singapore":            "SGP",
+		"New Zealand":          "NZL",
+		"South Africa":         "ZAF",
+		"Argentina":            "ARG",
+		"Chile":                "CHL",
+		"Colombia":             "COL",
+		"Peru":                 "PER",
+		"Venezuela":            "VEN",
+		"Turkey":               "TUR",
+		"Israel":               "ISR",
+		"Saudi Arabia":         "SAU",
+		"United Arab Emirates": "ARE",
+		"Egypt":                "EGY",
+		"Nigeria":              "NGA",
+		"Kenya":                "KEN",
+		"Ghana":                "GHA",
+		"Morocco":              "MAR",
+		"Thailand":             "THA",
+		"Vietnam":              "VNM",
+		"Philippines":          "PHL",
+		"Indonesia":            "IDN",
+		"Malaysia":             "MYS",
+		"Pakistan":             "PAK",
+		"Bangladesh":           "BGD",
+		"Sri Lanka":            "LKA",
+	}
+
+	if iso3, exists := countryMap[countryName]; exists {
+		return iso3
+	}
+
+	// If not found, return first 3 letters of country name as fallback
+	if len(countryName) >= 3 {
+		return strings.ToUpper(countryName[:3])
+	}
+	return strings.ToUpper(countryName)
+}
+
 // sanitizeSortField ensures only safe column names are used for sorting
 func (db *Database) sanitizeSortField(sort string) string {
-	// Define allowed sort fields to prevent SQL injection
 	allowedFields := map[string]string{
-		"id":         "id",
-		"name":       "name",
-		"email":      "email",
-		"created_at": "created_at",
-		"updated_at": "updated_at",
-		"price":      "price",
-		"quantity":   "quantity",
-		"total":      "total_amount",
-		"date":       "transaction_date",
-		"status":     "status",
+		"id":           "id",
+		"name":         "name",
+		"email":        "email",
+		"created_at":   "created_at",
+		"updated_at":   "updated_at",
+		"price":        "price",
+		"quantity":     "quantity",
+		"first_name":   "first_name",
+		"last_name":    "last_name",
+		"company_name": "company_name",
+		"contact_name": "contact_name",
 	}
 
 	if field, exists := allowedFields[sort]; exists {
 		return field
 	}
+	return "id" // Default sort field
+}
 
-	// Default sort field
-	return "id"
+// sanitizeSortFieldForTransactions ensures only safe column names are used for sorting transactions
+func (db *Database) sanitizeSortFieldForTransactions(sort string) string {
+	allowedFields := map[string]string{
+		"id":         "t.id",
+		"date":       "t.transaction_date",
+		"created_at": "t.created_at",
+		"updated_at": "t.updated_at",
+		"total":      "t.total_amount",
+		"amount":     "t.total_amount",
+		"quantity":   "t.quantity",
+		"status":     "t.status",
+		"user_id":    "t.user_id",
+		"product_id": "t.product_id",
+	}
+
+	if field, exists := allowedFields[sort]; exists {
+		return field
+	}
+	return "t.id" // Default sort field with table prefix
 }

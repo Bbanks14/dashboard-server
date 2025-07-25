@@ -8,13 +8,11 @@ import (
 
 // SetupClientRoutes configures client-related routes
 func SetupClientRoutes(router *gin.Engine, controller *controllers.ClientController, authMiddleware *middleware.AuthMiddleware) {
-	clients := router.Group("/api/clients")
+	client := router.Group("/api/client")
 	{
-		// Public routes
-		clients.GET("/", controller.GetClients)
 
 		// Protected routes
-		authorized := clients.Group("/")
+		authorized := client.Group("/")
 		authorized.Use(authMiddleware.RequireAuth())
 		{
 			authorized.GET("/products", controller.GetProducts)

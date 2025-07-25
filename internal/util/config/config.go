@@ -22,6 +22,12 @@ type ServerConfig struct {
 	WriteTimeout int    `yaml:"write_timeout"`
 }
 
+type AppConfig struct {
+	Environment string
+	LogLevel    string
+	CORSOrigins []string
+}
+
 // DatabaseConfig contains database-specific configuration
 type DatabaseConfig struct {
 	Host     string `yaml:"host"`
@@ -33,9 +39,9 @@ type DatabaseConfig struct {
 
 // AuthConfig contains authentication-specific configuration
 type AuthConfig struct {
-	JWTSecret        string `yaml:"jwt_secret"`
-	TokenExpiration  int    `yaml:"token_expiration"` // in hours
-	RefreshTokenExpiration int `yaml:"refresh_token_expiration"` // in days
+	JWTSecret              string `yaml:"jwt_secret"`
+	TokenExpiration        int    `yaml:"token_expiration"`         // in hours
+	RefreshTokenExpiration int    `yaml:"refresh_token_expiration"` // in days
 }
 
 // LoadConfig loads configuration from the specified file
@@ -49,25 +55,4 @@ func LoadConfig(configPath string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-
-	return &config, nil
 }
-
-// File: configs/app.yaml
-server:
-  port: "8080"
-  environment: "development"
-  read_timeout: 10
-  write_timeout: 10
-
-database:
-  host: "localhost"
-  port: "5432"
-  user: "postgres"
-  password: "password"
-  name: "dashboard_db"
-
-auth:
-  jwt_secret: "your_jwt_secret_key_change_in_production"
-  token_expiration: 24
-  refresh_token_expiration: 7
