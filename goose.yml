@@ -1,0 +1,11 @@
+environments:
+  development:
+    driver: postgres
+    open: postgres://tayo:passw0rd@localhost:5432/dashboard_server?sslmode=disable
+
+  production:
+    driver: postgres
+    open: $DATABASE_URL
+
+migrations:
+  dir: ./internal/db/migrations
