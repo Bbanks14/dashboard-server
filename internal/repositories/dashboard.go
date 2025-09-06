@@ -1,3 +1,4 @@
+
 package repositories
 
 import (
@@ -538,6 +539,7 @@ func (dr *DashboardRepository) ForecastData(ctx context.Context, startDate, endD
 func (dr *DashboardRepository) ProductSummary(ctx context.Context, startDate, endDate string) ([]models.ProductSummary, error) {
 	query := `
 		SELECT p.product_id, p.name, COALESCE(SUM(s.quantity), 0) as total_quantity, 
+`
 		if err := rows.Scan(&rrs.RegionID, &rrs.RegionName, &rrs.Revenue,
 			&rrs.CustomerCount, &rrs.TransactionCount, &rrs.AvgTransactionValue); err != nil {
 			return nil, fmt.Errorf("failed to scan region revenue split: %w", err)
@@ -563,3 +565,16 @@ func (dr *DashboardRepository) ProductSummary(ctx context.Context, startDate, en
 	return splits, nil
 }
 
+type TransactionRepository interface {
+FindRecent(limit int, filters(map[string]interface[]) ([]*RecentTransactions, error)
+SearchTransactions(query string, filters map[string]interface{}) ([]*RecentTransactions, error)
+GetCategories() ([]string, error)
+}
+
+func CreateNotification(notif *models.Notification) error {
+	return db.DB.Create(notif).Error
+}
+
+func CreateSalesMetric(metric *models.SalesMetric) error {
+	return db.DB.Create(metric).Error
+}

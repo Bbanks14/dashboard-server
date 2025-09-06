@@ -145,3 +145,37 @@ type RevenueGrowthData struct {
 	CustomerSegmentRevenue []CustomerSegmentRevenue `json:"customer_segment_revenue"`
 	RegionRevenueSplit     []RegionRevenueSplit     `json:"region_revenue_split"`
 }
+
+// RecentTransactions Data struct defines the total data structure for displaying all recent transactional activities
+// including activity, order id, date, time, price and status
+type RecentTransactions struct {
+	ID      int       `json:"id" db:"id"`
+	OrderID string    `json:"order_id" db:"order_id"`
+	Date    time.Time `json:"date" db:"date"`
+	Price   string    `json:"price" db:"price"`
+	Status  string    `json:"status" db:"status"`
+}
+
+type User struct {
+	ID       int    `json:"id" db:"id"`
+	Username string `json:"username" db:"username"`
+	Email    string `json:"email" db:"email"`
+	PictureURL string `json:"picture_url"
+}
+
+type Notification struct {
+	ID        int       `json:"id" db:"id"`
+	UserID    uint      `json:"user_id" db:"user_id"`
+	Message   string    `json:"message" db:"message"`
+	IsRead    bool      `json:"is_read" db:"is_read"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+type SalesMetric struct {
+	ID    int     `json:"id" db:"id"`
+	UserID int     `json:"user_id" db:"user_id"`
+	MetricName	string  `json:"metric_name" db:"metric_name"`	
+	Value float64 `json:"value" db:"value"`
+	Description string `json:"description" db:"description"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}

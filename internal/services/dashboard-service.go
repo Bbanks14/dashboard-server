@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Bbanks14/dashboard-server/internal/middleware"
 	"github.com/Bbanks14/dashboard-server/internal/models"
+	"github.com/Bbanks14/dashboard-server/internal/repositories"
 	"github.com/google/uuid"
 )
 
@@ -228,4 +230,28 @@ func (s *dashboardService) validateDateRange(startDate, endDate string) error {
 	}
 
 	return nil
+}
+
+type HelpInfo struct {
+	About string `json:"about"`
+}
+
+func GetUserProfile(id uint) (*models.User, error) {
+	return repositories.GetUserByID(id)
+}
+
+func Logout(token string) {
+	middleware.BlacklistToken(token)
+}
+
+func GetRecentNotifications(userID uint) ([]models.Notification, error) {
+	return repositories.GetRecentNotifications(userID, 10)
+}
+
+func MarkAsRead(is uint) error {
+	return repositories.MarkNotificationRead(id)
+}
+
+func GetHelpInfo() HelpInfo {
+	return HelpInfo{About: "This is a sales metrics tracker and analytics dashboard connected to your online sales platform."}
 }

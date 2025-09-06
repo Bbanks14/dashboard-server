@@ -264,3 +264,11 @@ func (s *revenueGrowthService) calculateComparisonPeriods(startDate, endDate str
 		prevStart.Format("2006-01-02"),
 		prevEnd.Format("2006-01-02"), nil
 }
+
+func SearchApp(query string, userID uint) ([]models.SalesMetric, error) {
+	return repositories.SearchSalesMetrics(userID, query)
+}
+
+func PullSalesData(userID uint) error {
+	return repositories.PullSalesData(userID)
+}

@@ -384,3 +384,17 @@ func getEnv(key, fallback string) string {
 	}
 	return fallback
 }
+
+func SetupRouter() *gin.Engine {
+	r := gin.Default()
+	auth := r.Group("/")
+	auth.Use(AuthMiddleware())
+
+	auth.GET("/profile", controllers.GetProfile)
+	auth.POST("/logout", controllers.Logout)
+	auth.GET("/notifications", controllers.GetNotifications)
+	auth.PUT("/notifications/:id/read", controllers.MarkNotificationRead)
+	auth.GET("/help", controllers.GetHelp)
+
+	return r
+}

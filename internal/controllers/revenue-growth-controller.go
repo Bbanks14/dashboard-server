@@ -391,3 +391,23 @@ func (rc *RevenueGrowthController) validateComparisonDates(req PeriodComparisonR
 
 	return nil
 }
+
+func Search(c *gin.Context) {
+	query := c.Query(q)
+	userId := c.GetUint("userID")
+	results, err := services.SearchApp(query, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Search failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"results": results}
+}
+
+func SyncSales(c *gin.Context) {
+	userID := c.GetUint("userID")
+	if err := services.PullSalesData(userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Data sync failed"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Sales synced successfully"})
+}

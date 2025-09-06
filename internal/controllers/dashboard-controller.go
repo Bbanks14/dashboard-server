@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/Bbanks14/dashboard-server/internal/services"
@@ -425,4 +426,45 @@ func (dc *DashboardController) HealthCheck(c *gin.Context) {
 		"version":   "1.0.0",
 	}
 	dc.successResponse(c, health)
+}
+
+func GetProfile(c *gin.Context) {
+	userId := c.GetUint("userID")
+	user, err := services.GetUserProfile(userId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User not found"})
+		return
+	}
+	c.JSON(http.StatusOK, user)
+}
+
+func Logout(c *gin.Context) {
+	token := c.getHeader("Authorization")
+	services.Logout(token)
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
+
+func GetNotifications(c *gin.Context) {
+	userId := c.GetUint("userID")
+	notifs, err := services.GetRecentNotifications(userId)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch notifications"})
+		return
+	}
+	c.JSON(http.StatusOK, notifications)
+}
+
+func MarkNotificationRead(c *gin.Context) {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseUint(idStr, 10, 32)
+	if err := services.MarkAsRead(uint(id)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark notification as read"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Marked as read"})
+}
+
+func GetHelp(c *gin.Context) {
+	info := services.GetHelpInfo()
+	c.JSON(http.StatusOK, info)
 }

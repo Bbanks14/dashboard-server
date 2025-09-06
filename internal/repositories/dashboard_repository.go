@@ -1,3 +1,4 @@
+
 package repositories
 
 import (
@@ -537,7 +538,7 @@ func (dr *DashboardRepository) ForecastData(ctx context.Context, startDate, endD
 // ProductSummary retrieves sales summary by product
 func (dr *DashboardRepository) ProductSummary(ctx context.Context, startDate, endDate string) ([]models.ProductSummary, error) {
 	query := `
-		SELECT p.product_id, p.name, COALESCE(SUM(s.quantity), 0) as total_quantity, 
+		SELECT p.product_id, p.name, COALESCE(SUM(s.quantity), 0) as total_quantity, `
 		if err := rows.Scan(&rrs.RegionID, &rrs.RegionName, &rrs.Revenue,
 			&rrs.CustomerCount, &rrs.TransactionCount, &rrs.AvgTransactionValue); err != nil {
 			return nil, fmt.Errorf("failed to scan region revenue split: %w", err)
@@ -563,3 +564,32 @@ func (dr *DashboardRepository) ProductSummary(ctx context.Context, startDate, en
 	return splits, nil
 }
 
+func GetUserByID(id uint) (*models.User, error) {
+	var user models.User
+	if err := db.DB.First(&user, id).Error; err != nil {
+		return nil, err
+	}
+}
+
+func GetRecentNotifications(userID uint, limit int) ([]models.Notification, error) {
+	var notifs []models.Notification
+	if err := db.DB.Where("user_id = ?", userID).Order("created_at desc").Limit(limit).Find(&notifs).Error; err != nil {
+		return nil, err
+	}
+	return notifs, nil
+}
+
+func MarkNotificationAsRead(notificationID int) error {
+	return db.DB.Model(&models.Notification{}).Where("id = ?", notificationID).Update("is_read", true).Error
+	Update("is_read", true).Error
+}
+
+func SearchSaleMetrics(userID, uint, query string) ([]models.SaleMetric, error) {
+	var metrics []models.SaleMetric
+	searchQuery := fmt.Sprintf("%%%s%%", query)
+	if err := db.DB.Where("user_id = ? AND (product_name ILIKE ? OR category ILIKE ?)", userID, searchQuery, searchQuery).
+		Find(&metrics).Error; err != nil {
+		return nil, err
+	}
+	return metrics, nil
+}

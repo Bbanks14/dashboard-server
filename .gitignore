@@ -1,1 +1,34 @@
 .env
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of coverage tool
+*.out
+
+# Dependency directory
+vendor/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE/editor folders
+.vscode/
+.idea/
+
+# Logs and temp files
+*.log
+*.tmp
+*~
+*.bak
+
+# Environment variables
+.env
